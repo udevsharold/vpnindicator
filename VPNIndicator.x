@@ -14,94 +14,9 @@
 
 #include <Foundation/Foundation.h>
 #include <HBLog.h>
+#import "UIKitCore-Headers.h"
 
-#define VPN_ACIVE_COLOR [UIColor systemBlueColor]
-
-@interface _UIStatusBarItemUpdate : NSObject
-@property (assign,nonatomic) BOOL enabilityChanged;
-@property (assign,nonatomic) BOOL enabled;
-@end
-
-@interface _UIStatusBarItem : NSObject
--(void)setNeedsUpdate;
--(id)_applyUpdate:(_UIStatusBarItemUpdate *)arg1 toDisplayItem:(id)arg2 ;
--(void)updatedDisplayItemsWithData:(id)arg1 ;
-@end
-
-@interface _UIStatusBarPersistentAnimationView : UIView
-@end
-
-@interface _UIStatusBarCycleAnimation : NSObject
-@property (assign,nonatomic) BOOL stopsAfterReversing;
--(void)_stopAnimations;
-@end
-
-@interface _UIStatusBarSignalView : _UIStatusBarPersistentAnimationView
-@property (nonatomic,copy) UIColor * activeColor;
-@property (nonatomic,copy) UIColor * inactiveColor;
-@property (assign,nonatomic) long long numberOfActiveBars;
-@property (assign,nonatomic) long long signalMode;
-@property (nonatomic,retain) _UIStatusBarCycleAnimation * cycleAnimation;
--(void)_colorsDidChange;
--(void)_updateBars;
--(void)_updateActiveBars;
--(void)_updateFromMode:(long long)arg1 ;
--(void)_updateCycleAnimationNow;
-@end
-
-
-@interface _UIStatusBarCellularSignalView : _UIStatusBarSignalView
-@end
-
-@interface _UIStatusBarWifiSignalView : _UIStatusBarSignalView
-@end
-
-@interface _UIStatusBarCellularItem : _UIStatusBarItem
-@property (nonatomic,retain) _UIStatusBarCellularSignalView * signalView;
-@end
-
-@interface _UIStatusBarWifiItem : _UIStatusBarItem
-@property (nonatomic,retain) _UIStatusBarWifiSignalView * signalView;
-@end
-
-@interface _UIStatusBarIdentifier : NSObject
-@end
-
-@interface _UIStatusBarStyleAttributes : NSObject
-@property (nonatomic,copy) UIColor * imageTintColor;
-@property (nonatomic,copy) UIColor * textColor;
-@end
-
-@interface _UIStatusBar : UIView
-@property (nonatomic,copy) UIColor *foregroundColor;
-@property (nonatomic,retain) NSMutableDictionary <_UIStatusBarIdentifier *, id>* items;
-@property (nonatomic,retain) _UIStatusBarStyleAttributes * styleAttributes;
-@property (assign,nonatomic) long long mode;-(void)_updateRegionItems;
-@end
-
-@interface SBStatusBarStateAggregator : NSObject
-+(id)sharedInstance;
--(void)updateStatusBarItem:(int)arg1 ;
--(void)_notifyItemChanged:(int)arg1 ;
--(void)_updateSignalStrengthItem;
--(BOOL)_setItem:(int)arg1 enabled:(BOOL)arg2 ;
--(void)_notifyItemChanged:(int)arg1 ;
--(void)beginCoalescentBlock;
--(void)_updateTetheringState;
--(void)_resetTimeItemFormatter;
--(void)_notifyNonItemDataChanged;
--(void)endCoalescentBlock;
--(BOOL)_setItem:(int)arg1 enabled:(BOOL)arg2 ;
--(BOOL)_setItem:(int)arg1 enabled:(BOOL)arg2 inList:(BOOL*)arg3 itemPostState:(unsigned long long*)arg4 ;
-@end
-
-@interface SBWiFiManager : NSObject
-+(id)sharedInstance;
--(void)_updateSignalStrengthFromRawRSSI:(int)arg1 andScaledRSSI:(float)arg2 ;
--(BOOL)isPrimaryInterface;
-@end
-
-
+#define VPN_ACTIVE_COLOR [UIColor systemBlueColor]
 
 static BOOL vpnActive;
 static BOOL isCellular;
@@ -121,24 +36,40 @@ static BOOL isVPNConnected(){
 -(id)initWithStyle:(long long)style{
 	self = %orig;
 	if (self){
+		__weak _UIStatusBar *weakSelf = self;
 		[[NSNotificationCenter defaultCenter] addObserverForName:@"SBVPNConnectionChangedNotification" object:nil queue:nil usingBlock:^(NSNotification *note){
 			SBWiFiManager *wifiManager = [%c(SBWiFiManager) sharedInstance];
 			isCellular = ![wifiManager isPrimaryInterface];
 			vpnActive = isVPNConnected();
-			if (!vpnActive){
-				SBStatusBarStateAggregator *stateAggregator = [%c(SBStatusBarStateAggregator) sharedInstance];
-				if (isCellular){
-					[stateAggregator _setItem:4 enabled:NO];
-					[stateAggregator _notifyItemChanged:4];
-					[stateAggregator _setItem:4 enabled:YES];
-					[stateAggregator _notifyItemChanged:4];
-				}else{
-					[stateAggregator _setItem:9 enabled:NO];
-					[stateAggregator _notifyItemChanged:9];
-					[stateAggregator _setItem:9 enabled:YES];
-					[stateAggregator _notifyItemChanged:9];
+			
+			//Artificially disable and enable the item again to make it changes the tint across all scenes (apps), effectively remove the needs to hook onto every UIKit process
+			SBStatusBarStateAggregator *stateAggregator = [%c(SBStatusBarStateAggregator) sharedInstance];
+			for (_UIStatusBarDisplayItemState *itemState in weakSelf.displayItemStates.allValues){
+				if ([itemState.item respondsToSelector:@selector(signalView)] && itemState.enabled){
+					HBLogDebug(@"itemState.identifier.stringRepresentation: %@", itemState.identifier.stringRepresentation);
+					if (isCellular && [itemState.identifier.stringRepresentation hasPrefix:@"_UIStatusBarCellular"]){
+						//4 - Primary
+						//5 - Secondary (another SIM cellular)
+						[stateAggregator _setItem:4 enabled:NO];
+						[stateAggregator _notifyItemChanged:4];
+						dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+							[stateAggregator _setItem:4 enabled:YES];
+							[stateAggregator _notifyItemChanged:4];
+						});
+						
+					}else if ([itemState.identifier.stringRepresentation hasPrefix:@"_UIStatusBarWifi"]){
+						//9 - Primary
+						//10- Secondary
+						[stateAggregator _setItem:9 enabled:NO];
+						[stateAggregator _notifyItemChanged:9];
+						dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+							[stateAggregator _setItem:9 enabled:YES];
+							[stateAggregator _notifyItemChanged:9];
+						});
+					}
 				}
 			}
+			
 		}];
 	}
 	return self;
@@ -149,7 +80,7 @@ static BOOL isVPNConnected(){
 %hook _UIStatusBarWifiSignalView
 -(void)setActiveColor:(UIColor *)color{
 	if (vpnActive && !isCellular){
-		return %orig(VPN_ACIVE_COLOR);
+		return %orig(VPN_ACTIVE_COLOR);
 	}
 	%orig;
 }
@@ -158,7 +89,7 @@ static BOOL isVPNConnected(){
 %hook _UIStatusBarCellularSignalView
 -(void)setActiveColor:(UIColor *)color{
 	if (vpnActive && isCellular){
-		return %orig(VPN_ACIVE_COLOR);
+		return %orig(VPN_ACTIVE_COLOR);
 	}
 	%orig;
 }
