@@ -56,7 +56,7 @@ static BOOL isVPNConnected(){
 							[stateAggregator _setItem:4 enabled:YES];
 							[stateAggregator _notifyItemChanged:4];
 						});
-						
+						break;
 					}else if ([itemState.identifier.stringRepresentation hasPrefix:@"_UIStatusBarWifi"]){
 						//9 - Primary
 						//10- Secondary
@@ -66,6 +66,7 @@ static BOOL isVPNConnected(){
 							[stateAggregator _setItem:9 enabled:YES];
 							[stateAggregator _notifyItemChanged:9];
 						});
+						break;
 					}
 				}
 			}
@@ -75,7 +76,6 @@ static BOOL isVPNConnected(){
 	return self;
 }
 %end
-
 
 %hook _UIStatusBarWifiSignalView
 -(void)setActiveColor:(UIColor *)color{
