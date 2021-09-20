@@ -1,11 +1,11 @@
 Package: com.udevs.vpnindicator
 Name: VPNIndicator
-Version:   1.0.2
+Version: 1.1.0
 Architecture: iphoneos-arm
 Description: Indicates VPN state in status bar
 Maintainer: udevs
 Author: udevs
 Section: Tweaks
-Depends: mobilesubstrate (>= 0.9.5000)
+Depends: mobilesubstrate (>= 0.9.5000), com.creaturesurvive.libcscolorpicker
 Icon: https://udevsharold.github.io/repo/depictions/com.udevs.vpnindicator/icon/icon.png
 Depiction: https://udevsharold.github.io/repo/depictions/?p=com.udevs.vpnindicator

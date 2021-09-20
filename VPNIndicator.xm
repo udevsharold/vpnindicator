@@ -14,12 +14,21 @@
 
 #include <Foundation/Foundation.h>
 #include <HBLog.h>
+#include <dlfcn.h>
+#include <CSColorPicker/CSColorPicker.h>
 #import "UIKitCore-Headers.h"
 
 #define VPN_ACTIVE_COLOR [UIColor systemBlueColor]
 
+typedef void* CTServerConnectionRef;
+extern "C" CTServerConnectionRef _CTServerConnectionCreate(CFAllocatorRef, void *, void*);
+extern "C" BOOL _CTServerConnectionCopyDualSimCapability(CTServerConnectionRef, CFNumberRef *);
+
+static BOOL enabled;
+static UIColor *activeColor;
 static BOOL vpnActive;
 static BOOL isCellular;
+static BOOL isDualSimPreviouslyAvailable;
 
 static BOOL isVPNConnected(){
 	NSDictionary *proxySettings = CFBridgingRelease(CFNetworkCopySystemProxySettings());
@@ -32,12 +41,34 @@ static BOOL isVPNConnected(){
 	return NO;
 }
 
+static BOOL isDualSimEnabled(){
+	if (!dlsym(RTLD_DEFAULT, "_CTServerConnectionCopyDualSimCapability")) return NO;
+	int n = 0;
+	CTServerConnectionRef cn = _CTServerConnectionCreate(kCFAllocatorDefault, NULL, NULL);
+	CFNumberRef dsRef = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &n);
+	_CTServerConnectionCopyDualSimCapability(cn, &dsRef);
+	
+	//0 - Disabled
+	//1 - Enabled
+	//2 - No Supported
+	//3 - Unknown
+	//Else - Invalud
+	if (CFNumberCompare(dsRef, (CFNumberRef)(@1), NULL) == kCFCompareEqualTo){
+		if (dsRef){
+			CFRelease(dsRef);
+		}
+		return YES;
+	}
+	return NO;
+}
+
 %hook _UIStatusBar
 -(id)initWithStyle:(long long)style{
 	self = %orig;
 	if (self){
 		__weak _UIStatusBar *weakSelf = self;
 		[[NSNotificationCenter defaultCenter] addObserverForName:@"SBVPNConnectionChangedNotification" object:nil queue:nil usingBlock:^(NSNotification *note){
+			if (!enabled) return;
 			SBWiFiManager *wifiManager = [%c(SBWiFiManager) sharedInstance];
 			isCellular = ![wifiManager isPrimaryInterface];
 			vpnActive = isVPNConnected();
@@ -46,16 +77,33 @@ static BOOL isVPNConnected(){
 			SBStatusBarStateAggregator *stateAggregator = [%c(SBStatusBarStateAggregator) sharedInstance];
 			for (_UIStatusBarDisplayItemState *itemState in weakSelf.displayItemStates.allValues){
 				if ([itemState.item respondsToSelector:@selector(signalView)] && itemState.enabled){
-					HBLogDebug(@"itemState.identifier.stringRepresentation: %@", itemState.identifier.stringRepresentation);
 					if (isCellular && [itemState.identifier.stringRepresentation hasPrefix:@"_UIStatusBarCellular"]){
 						//4 - Primary
 						//5 - Secondary (another SIM cellular)
+						//6 - Service Item
+						//7 - Secondary Service Item
 						[stateAggregator _setItem:4 enabled:NO];
 						[stateAggregator _notifyItemChanged:4];
 						dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
 							[stateAggregator _setItem:4 enabled:YES];
 							[stateAggregator _notifyItemChanged:4];
 						});
+						if (isDualSimEnabled()){
+							isDualSimPreviouslyAvailable = YES;
+							[stateAggregator _setItem:7 enabled:NO];
+							[stateAggregator _notifyItemChanged:7];
+							dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+								[stateAggregator _setItem:7 enabled:YES];
+								[stateAggregator _notifyItemChanged:7];
+							});
+						}else if (isDualSimPreviouslyAvailable){
+							[stateAggregator _setItem:7 enabled:YES];
+							[stateAggregator _notifyItemChanged:7];
+							dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+								[stateAggregator _setItem:7 enabled:NO];
+								[stateAggregator _notifyItemChanged:7];
+							});
+						}
 						break;
 					}else if ([itemState.identifier.stringRepresentation hasPrefix:@"_UIStatusBarWifi"]){
 						//9 - Primary
@@ -70,7 +118,6 @@ static BOOL isVPNConnected(){
 					}
 				}
 			}
-			
 		}];
 	}
 	return self;
@@ -79,8 +126,8 @@ static BOOL isVPNConnected(){
 
 %hook _UIStatusBarWifiSignalView
 -(void)setActiveColor:(UIColor *)color{
-	if (vpnActive && !isCellular){
-		return %orig(VPN_ACTIVE_COLOR);
+	if (enabled && vpnActive && !isCellular){
+		return %orig(activeColor);
 	}
 	%orig;
 }
@@ -88,9 +135,36 @@ static BOOL isVPNConnected(){
 
 %hook _UIStatusBarCellularSignalView
 -(void)setActiveColor:(UIColor *)color{
-	if (vpnActive && isCellular){
-		return %orig(VPN_ACTIVE_COLOR);
+	if (enabled && vpnActive && isCellular){
+		return %orig(activeColor);
 	}
 	%orig;
 }
 %end
+
+id valueForKey(NSString *key, id defaultValue){
+	CFStringRef appID = CFSTR("com.udevs.vpnindicator");
+	CFPreferencesAppSynchronize(appID);
+	
+	CFArrayRef keyList = CFPreferencesCopyKeyList(appID, kCFPreferencesCurrentUser, kCFPreferencesAnyHost);
+	if (keyList != NULL){
+		BOOL containsKey = CFArrayContainsValue(keyList, CFRangeMake(0, CFArrayGetCount(keyList)), (__bridge CFStringRef)key);
+		CFRelease(keyList);
+		if (!containsKey) return defaultValue;
+		
+		return CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)key, appID));
+	}
+	return defaultValue;
+}
+
+static void reloadPrefs(){
+	enabled = [valueForKey(@"enabled", @YES) boolValue];
+	id activeColorVal = valueForKey(@"activeColor", nil);
+	activeColor = activeColorVal ? [UIColor cscp_colorFromHexString:activeColorVal] : VPN_ACTIVE_COLOR;
+	
+}
+
+%ctor{
+	reloadPrefs();
+	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)reloadPrefs, CFSTR("com.udevs.vpnindicator.prefschanged"), NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
+}
