@@ -12,8 +12,7 @@
 //    You should have received a copy of the GNU General Public License
 //    along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-#include <Foundation/Foundation.h>
-#include <HBLog.h>
+#import "Common.h"
 #include <dlfcn.h>
 #include <CSColorPicker/CSColorPicker.h>
 #import "UIKitCore-Headers.h"
@@ -45,17 +44,21 @@ static BOOL isDualSimEnabled(){
 	if (!dlsym(RTLD_DEFAULT, "_CTServerConnectionCopyDualSimCapability")) return NO;
 	int n = 0;
 	CTServerConnectionRef cn = _CTServerConnectionCreate(kCFAllocatorDefault, NULL, NULL);
-	CFNumberRef dsRef = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &n);
-	_CTServerConnectionCopyDualSimCapability(cn, &dsRef);
+	CFNumberRef dscap = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &n);
+	_CTServerConnectionCopyDualSimCapability(cn, &dscap);
+	
+	if (cn){
+		CFRelease(cn);
+	}
 	
 	//0 - Disabled
 	//1 - Enabled
 	//2 - No Supported
 	//3 - Unknown
 	//Else - Invalud
-	if (CFNumberCompare(dsRef, (CFNumberRef)(@1), NULL) == kCFCompareEqualTo){
-		if (dsRef){
-			CFRelease(dsRef);
+	if (CFNumberCompare(dscap, (CFNumberRef)(@1), NULL) == kCFCompareEqualTo){
+		if (dscap){
+			CFRelease(dscap);
 		}
 		return YES;
 	}
@@ -143,7 +146,7 @@ static BOOL isDualSimEnabled(){
 %end
 
 static id valueForKey(NSString *key, id defaultValue){
-	CFStringRef appID = CFSTR("com.udevs.vpnindicator");
+	CFStringRef appID = (CFStringRef)VPNINDICATOR_IDENTIFIER;
 	CFPreferencesAppSynchronize(appID);
 	
 	CFArrayRef keyList = CFPreferencesCopyKeyList(appID, kCFPreferencesCurrentUser, kCFPreferencesAnyHost);
@@ -161,10 +164,9 @@ static void reloadPrefs(){
 	enabled = [valueForKey(@"enabled", @YES) boolValue];
 	id activeColorVal = valueForKey(@"activeColor", nil);
 	activeColor = activeColorVal ? [UIColor cscp_colorFromHexString:activeColorVal] : VPN_ACTIVE_COLOR;
-	
 }
 
 %ctor{
 	reloadPrefs();
-	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)reloadPrefs, CFSTR("com.udevs.vpnindicator.prefschanged"), NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
+	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)reloadPrefs, (CFStringRef)PREFS_CHANGED_NN, NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
 }

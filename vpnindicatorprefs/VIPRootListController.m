@@ -12,6 +12,7 @@
 //    You should have received a copy of the GNU General Public License
 //    along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+#import "../Common.h"
 #include "VIPRootListController.h"
 #include <CSColorPicker/CSColorPicker.h>
 
@@ -64,8 +65,8 @@
 		[tweakEnabledSpec setProperty:@"Enabled" forKey:@"label"];
 		[tweakEnabledSpec setProperty:@"enabled" forKey:@"key"];
 		[tweakEnabledSpec setProperty:@YES forKey:@"default"];
-		[tweakEnabledSpec setProperty:@"com.udevs.vpnindicator" forKey:@"defaults"];
-		[tweakEnabledSpec setProperty:@"com.udevs.vpnindicator.prefschanged" forKey:@"PostNotification"];
+		[tweakEnabledSpec setProperty:VPNINDICATOR_IDENTIFIER forKey:@"defaults"];
+		[tweakEnabledSpec setProperty:PREFS_CHANGED_NN forKey:@"PostNotification"];
 		[rootSpecifiers addObject:tweakEnabledSpec];
 		
 		//blank
@@ -75,13 +76,24 @@
 		//activeColor
 		PSSpecifier *activeColorSpec = [PSSpecifier preferenceSpecifierNamed:@"Active Color" target:self set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:nil cell:PSLinkCell edit:nil];
 		[activeColorSpec setProperty:NSClassFromString(@"CSColorDisplayCell") forKey:@"cellClass"];
-		[activeColorSpec setProperty:@"com.udevs.vpnindicator" forKey:@"defaults"];
+		[activeColorSpec setProperty:VPNINDICATOR_IDENTIFIER forKey:@"defaults"];
 		[activeColorSpec setProperty:@"Color" forKey:@"label"];
 		[activeColorSpec setProperty:@"activeColor" forKey:@"key"];
 		[activeColorSpec setProperty:[UIColor cscp_hexStringFromColor:[UIColor systemBlueColor]] forKey:@"fallback"];
-		[activeColorSpec setProperty:@"com.udevs.vpnindicator.prefschanged" forKey:@"PostNotification"];
+		[activeColorSpec setProperty:PREFS_CHANGED_NN forKey:@"PostNotification"];
 		[rootSpecifiers addObject:activeColorSpec];
 
+		//blank
+		PSSpecifier *resetGroupSpec = [PSSpecifier preferenceSpecifierNamed:@"Reset Group" target:nil set:nil get:nil detail:nil cell:PSGroupCell edit:nil];
+		[resetGroupSpec setProperty:@"Some settings will requires relaunch of Settings app to visually reflect changes." forKey:@"footerText"];
+		[rootSpecifiers addObject:resetGroupSpec];
+		
+		//reset
+		PSSpecifier *resetSpec = [PSSpecifier preferenceSpecifierNamed:@"Reset" target:self set:nil get:nil detail:nil cell:PSButtonCell edit:nil];
+		[resetSpec setProperty:@"Reset" forKey:@"label"];
+		[resetSpec setButtonAction:@selector(reset)];
+		[rootSpecifiers addObject:resetSpec];
+		
 		//blank
 		[rootSpecifiers addObject:blankSpecGroup];
 		
@@ -125,23 +137,38 @@
 		[rootSpecifiers addObject:blankSpecGroup];
 		[rootSpecifiers addObject:blankSpecGroup];
 		
-		
 		_specifiers = rootSpecifiers;
 	}
 	
 	return _specifiers;
 }
 
-- (void)donation {
+- (void)donation{
 	[[UIApplication sharedApplication] openURL:[NSURL URLWithString:@"https://www.paypal.me/udevs"] options:@{} completionHandler:nil];
 }
 
-- (void)twitter {
+- (void)twitter{
 	[[UIApplication sharedApplication] openURL:[NSURL URLWithString:@"https://twitter.com/udevs9"] options:@{} completionHandler:nil];
 }
 
-- (void)reddit {
+- (void)reddit{
 	[[UIApplication sharedApplication] openURL:[NSURL URLWithString:@"https://www.reddit.com/user/h4roldj"] options:@{} completionHandler:nil];
+}
+
+- (void)reset{
+	CFStringRef appID = (CFStringRef)VPNINDICATOR_IDENTIFIER;
+	CFPreferencesAppSynchronize(appID);
+	CFArrayRef keyList = CFPreferencesCopyKeyList(appID, kCFPreferencesCurrentUser, kCFPreferencesAnyHost);
+	if (keyList){
+		NSDictionary *dictionary = (NSDictionary *)CFBridgingRelease(CFPreferencesCopyMultiple(keyList, appID, kCFPreferencesCurrentUser, kCFPreferencesAnyHost));
+		CFRelease(keyList);
+		for (NSString *key in dictionary.allKeys){
+			CFPreferencesSetAppValue((CFStringRef)key, NULL, appID);
+		}
+		CFPreferencesAppSynchronize(appID);
+		CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)PREFS_CHANGED_NN, NULL, NULL, YES);
+		[self reloadSpecifiers];
+	}
 }
 
 @end
