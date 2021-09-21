@@ -142,7 +142,7 @@ static BOOL isDualSimEnabled(){
 }
 %end
 
-id valueForKey(NSString *key, id defaultValue){
+static id valueForKey(NSString *key, id defaultValue){
 	CFStringRef appID = CFSTR("com.udevs.vpnindicator");
 	CFPreferencesAppSynchronize(appID);
 	
