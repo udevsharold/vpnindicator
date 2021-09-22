@@ -84,7 +84,7 @@
 		[rootSpecifiers addObject:activeColorSpec];
 
 		//blank
-		PSSpecifier *resetGroupSpec = [PSSpecifier preferenceSpecifierNamed:@"Reset Group" target:nil set:nil get:nil detail:nil cell:PSGroupCell edit:nil];
+		PSSpecifier *resetGroupSpec = [PSSpecifier preferenceSpecifierNamed:@"" target:nil set:nil get:nil detail:nil cell:PSGroupCell edit:nil];
 		[resetGroupSpec setProperty:@"Some settings will requires relaunch of Settings app to visually reflect changes." forKey:@"footerText"];
 		[rootSpecifiers addObject:resetGroupSpec];
 		

@@ -46,11 +46,6 @@ static BOOL isDualSimEnabled(){
 	CTServerConnectionRef cn = _CTServerConnectionCreate(kCFAllocatorDefault, NULL, NULL);
 	CFNumberRef dscap = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &n);
 	_CTServerConnectionCopyDualSimCapability(cn, &dscap);
-	
-	if (cn){
-		CFRelease(cn);
-	}
-	
 	//0 - Disabled
 	//1 - Enabled
 	//2 - No Supported
@@ -65,6 +60,16 @@ static BOOL isDualSimEnabled(){
 	return NO;
 }
 
+static void reloadItem(int item, BOOL finalState){
+	SBStatusBarStateAggregator *stateAggregator = [%c(SBStatusBarStateAggregator) sharedInstance];
+	[stateAggregator _setItem:item enabled:!finalState];
+	[stateAggregator _notifyItemChanged:item];
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+		[stateAggregator _setItem:item enabled:finalState];
+		[stateAggregator _notifyItemChanged:item];
+	});
+}
+
 %hook _UIStatusBar
 -(id)initWithStyle:(long long)style{
 	self = %orig;
@@ -77,7 +82,6 @@ static BOOL isDualSimEnabled(){
 			vpnActive = isVPNConnected();
 			
 			//Artificially disable and enable the item again to make it changes the tint across all scenes (apps), effectively remove the needs to hook onto every UIKit process
-			SBStatusBarStateAggregator *stateAggregator = [%c(SBStatusBarStateAggregator) sharedInstance];
 			for (_UIStatusBarDisplayItemState *itemState in weakSelf.displayItemStates.allValues){
 				if ([itemState.item respondsToSelector:@selector(signalView)] && itemState.enabled){
 					if (isCellular && [itemState.identifier.stringRepresentation hasPrefix:@"_UIStatusBarCellular"]){
@@ -85,38 +89,18 @@ static BOOL isDualSimEnabled(){
 						//5 - Secondary (another SIM cellular)
 						//6 - Service Item
 						//7 - Secondary Service Item
-						[stateAggregator _setItem:4 enabled:NO];
-						[stateAggregator _notifyItemChanged:4];
-						dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-							[stateAggregator _setItem:4 enabled:YES];
-							[stateAggregator _notifyItemChanged:4];
-						});
+						reloadItem(4, YES);
 						if (isDualSimEnabled()){
 							isDualSimPreviouslyAvailable = YES;
-							[stateAggregator _setItem:7 enabled:NO];
-							[stateAggregator _notifyItemChanged:7];
-							dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-								[stateAggregator _setItem:7 enabled:YES];
-								[stateAggregator _notifyItemChanged:7];
-							});
+							reloadItem(7, YES);
 						}else if (isDualSimPreviouslyAvailable){
-							[stateAggregator _setItem:7 enabled:YES];
-							[stateAggregator _notifyItemChanged:7];
-							dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-								[stateAggregator _setItem:7 enabled:NO];
-								[stateAggregator _notifyItemChanged:7];
-							});
+							reloadItem(7, NO);
 						}
 						break;
 					}else if ([itemState.identifier.stringRepresentation hasPrefix:@"_UIStatusBarWifi"]){
 						//9 - Primary
 						//10- Secondary
-						[stateAggregator _setItem:9 enabled:NO];
-						[stateAggregator _notifyItemChanged:9];
-						dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-							[stateAggregator _setItem:9 enabled:YES];
-							[stateAggregator _notifyItemChanged:9];
-						});
+						reloadItem(9, YES);
 						break;
 					}
 				}
