@@ -70,11 +70,12 @@
 		[rootSpecifiers addObject:tweakEnabledSpec];
 		
 		//blank
-		PSSpecifier *blankSpecGroup = [PSSpecifier preferenceSpecifierNamed:@"" target:nil set:nil get:nil detail:nil cell:PSGroupCell edit:nil];
-		[rootSpecifiers addObject:blankSpecGroup];
+		PSSpecifier *activeColorSpecGroup = [PSSpecifier preferenceSpecifierNamed:@"" target:nil set:nil get:nil detail:nil cell:PSGroupCell edit:nil];
+		[activeColorSpecGroup setProperty:@"Indicates when VPN is inactive instead." forKey:@"footerText"];
+		[rootSpecifiers addObject:activeColorSpecGroup];
 		
 		//activeColor
-		PSSpecifier *activeColorSpec = [PSSpecifier preferenceSpecifierNamed:@"Active Color" target:self set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:nil cell:PSLinkCell edit:nil];
+		PSSpecifier *activeColorSpec = [PSSpecifier preferenceSpecifierNamed:@"Color" target:self set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:nil cell:PSLinkCell edit:nil];
 		[activeColorSpec setProperty:NSClassFromString(@"CSColorDisplayCell") forKey:@"cellClass"];
 		[activeColorSpec setProperty:VPNINDICATOR_IDENTIFIER forKey:@"defaults"];
 		[activeColorSpec setProperty:@"Color" forKey:@"label"];
@@ -83,18 +84,27 @@
 		[activeColorSpec setProperty:PREFS_CHANGED_NN forKey:@"PostNotification"];
 		[rootSpecifiers addObject:activeColorSpec];
 
-		//blank
+		//invert
+		PSSpecifier *invertSpec = [PSSpecifier preferenceSpecifierNamed:@"Invert" target:self set:@selector(setPreferenceValue:specifier:) get:@selector(readPreferenceValue:) detail:nil cell:PSSwitchCell edit:nil];
+		[invertSpec setProperty:@"Invert" forKey:@"label"];
+		[invertSpec setProperty:@"invert" forKey:@"key"];
+		[invertSpec setProperty:@NO forKey:@"default"];
+		[invertSpec setProperty:VPNINDICATOR_IDENTIFIER forKey:@"defaults"];
+		[invertSpec setProperty:PREFS_CHANGED_NN forKey:@"PostNotification"];
+		[rootSpecifiers addObject:invertSpec];
+		
+		//reset
 		PSSpecifier *resetGroupSpec = [PSSpecifier preferenceSpecifierNamed:@"" target:nil set:nil get:nil detail:nil cell:PSGroupCell edit:nil];
 		[resetGroupSpec setProperty:@"Some settings will requires relaunch of Settings app to visually reflect changes." forKey:@"footerText"];
 		[rootSpecifiers addObject:resetGroupSpec];
 		
-		//reset
 		PSSpecifier *resetSpec = [PSSpecifier preferenceSpecifierNamed:@"Reset" target:self set:nil get:nil detail:nil cell:PSButtonCell edit:nil];
 		[resetSpec setProperty:@"Reset" forKey:@"label"];
 		[resetSpec setButtonAction:@selector(reset)];
 		[rootSpecifiers addObject:resetSpec];
 		
 		//blank
+		PSSpecifier *blankSpecGroup = [PSSpecifier preferenceSpecifierNamed:@"" target:nil set:nil get:nil detail:nil cell:PSGroupCell edit:nil];
 		[rootSpecifiers addObject:blankSpecGroup];
 		
 		//Support Dev

@@ -24,6 +24,7 @@ extern "C" CTServerConnectionRef _CTServerConnectionCreate(CFAllocatorRef, void 
 extern "C" BOOL _CTServerConnectionCopyDualSimCapability(CTServerConnectionRef, CFNumberRef *);
 
 static BOOL enabled;
+static BOOL invert;
 static UIColor *activeColor;
 static BOOL vpnActive;
 static BOOL isCellular;
@@ -116,8 +117,10 @@ static void reloadItem(int item, BOOL finalState){
 
 %hook _UIStatusBarWifiSignalView
 -(void)setActiveColor:(UIColor *)color{
-	if (enabled && vpnActive && !isCellular){
-		return %orig(activeColor);
+	if (enabled){
+		if ((vpnActive && !isCellular && !invert) || (!vpnActive && !isCellular && invert)){
+			return %orig(activeColor);
+		}
 	}
 	%orig;
 }
@@ -125,8 +128,10 @@ static void reloadItem(int item, BOOL finalState){
 
 %hook _UIStatusBarCellularSignalView
 -(void)setActiveColor:(UIColor *)color{
-	if (enabled && vpnActive && isCellular){
-		return %orig(activeColor);
+	if (enabled){
+		if ((vpnActive && isCellular && !invert) || (!vpnActive && isCellular && invert)){
+			return %orig(activeColor);
+		}
 	}
 	%orig;
 }
@@ -149,6 +154,7 @@ static id valueForKey(NSString *key, id defaultValue){
 
 static void reloadPrefs(){
 	enabled = [valueForKey(@"enabled", @YES) boolValue];
+	invert = [valueForKey(@"invert", @NO) boolValue];
 	id activeColorVal = valueForKey(@"activeColor", nil);
 	activeColor = activeColorVal ? [UIColor cscp_colorFromHexString:activeColorVal] : VPN_ACTIVE_COLOR;
 }
