@@ -57,6 +57,9 @@ static BOOL isDualSimEnabled(){
 		}
 		return YES;
 	}
+	if (dscap){
+		CFRelease(dscap);
+	}
 	return NO;
 }
 
