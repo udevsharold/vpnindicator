@@ -53,14 +53,12 @@ static BOOL isDualSimEnabled(){
 	//3 - Unknown
 	//Else - Invalud
 	if (CFNumberCompare(dscap, (CFNumberRef)(@1), NULL) == kCFCompareEqualTo){
-		if (dscap){
-			CFRelease(dscap);
-		}
+		if (dscap) CFRelease(dscap);
+		if (cn) CFRelease(cn);
 		return YES;
 	}
-	if (dscap){
-		CFRelease(dscap);
-	}
+	if (dscap) CFRelease(dscap);
+	if (cn) CFRelease(cn);
 	return NO;
 }
 
