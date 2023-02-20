@@ -30,17 +30,6 @@ static BOOL vpnActive;
 static BOOL isCellular;
 static BOOL isDualSimPreviouslyAvailable;
 
-static BOOL isVPNConnected(){
-	NSDictionary *proxySettings = CFBridgingRelease(CFNetworkCopySystemProxySettings());
-	NSArray *keys = [proxySettings[@"__SCOPED__"] allKeys];
-	for (NSString *key in keys){
-		if ([key hasPrefix:@"tap"] || [key hasPrefix:@"tun"] || [key hasPrefix:@"ppp"] || [key hasPrefix:@"ipsec"] || [key hasPrefix:@"utun"]){
-			return YES;
-		}
-	}
-	return NO;
-}
-
 static BOOL isDualSimEnabled(){
 	if (!dlsym(RTLD_DEFAULT, "_CTServerConnectionCopyDualSimCapability")) return NO;
 	int n = 0;
@@ -81,7 +70,7 @@ static void reloadItem(int item, BOOL finalState){
 			if (!enabled) return;
 			SBWiFiManager *wifiManager = [%c(SBWiFiManager) sharedInstance];
 			isCellular = ![wifiManager isPrimaryInterface];
-			vpnActive = isVPNConnected();
+			vpnActive = [[%c(SBTelephonyManager) sharedTelephonyManager] isUsingVPNConnection];
 			
 			//Artificially disable and enable the item again to make it changes the tint across all scenes (apps), effectively remove the needs to hook onto every UIKit process
 			for (_UIStatusBarDisplayItemState *itemState in weakSelf.displayItemStates.allValues){

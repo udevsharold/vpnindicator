@@ -18,3 +18,7 @@
 #define VPNINDICATOR_IDENTIFIER @"com.udevs.vpnindicator"
 #define PREFS_CHANGED_NN @"com.udevs.vpnindicator.prefschanged"
 
+@interface SBTelephonyManager : NSObject
++(instancetype)sharedTelephonyManager;
+-(BOOL)isUsingVPNConnection;
+@end
